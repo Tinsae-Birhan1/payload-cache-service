@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: cache
+      POSTGRES_PASSWORD: cache  # local development only
+      POSTGRES_DB: cache
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cache -d cache"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  api:
+    build: .
+    environment:
+      CACHE_DATABASE_URL: postgresql+asyncpg://cache:cache@db:5432/cache
+      CACHE_TRANSFORMER_DELAY_SECONDS: ${CACHE_TRANSFORMER_DELAY_SECONDS:-0.2}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        # Wait for Postgres to accept connections, not merely for its container to start;
+        # otherwise the migration on startup races the database boot.
+        condition: service_healthy
+
+volumes:
+  pgdata:
