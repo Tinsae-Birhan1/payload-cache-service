@@ -20,10 +20,7 @@ class Settings(BaseSettings):
     # rate-limit, and a large request must not fan out into hundreds of simultaneous calls.
     transformer_max_concurrency: int = Field(default=10, gt=0)
 
-    # Upper bounds on request size: a single request must not be able to trigger an
-    # unbounded number of (potentially paid) transformer calls or blow up memory.
-    max_list_length: int = Field(default=1_000, gt=0)
-    max_string_length: int = Field(default=1_000, gt=0)
+    log_level: str = "INFO"
 
 
 @lru_cache
