@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Type-check
+        run: uv run mypy src tests migrations
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # SQLite and Postgres take different code paths (upsert dialects, locking),
+        # so the suite runs against both.
+        database: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: cache
+          POSTGRES_PASSWORD: cache
+          POSTGRES_DB: cache_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cache -d cache_test"
+          --health-interval 2s --health-timeout 3s --health-retries 15
+    env:
+      TEST_DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql+asyncpg://cache:cache@localhost:5432/cache_test' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest --cov=payload_cache --cov-report=term-missing
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and smoke-test the stack
+        run: |
+          docker compose up --build -d --wait
+          curl --fail --silent http://localhost:8000/health
+          curl --fail --silent -X POST http://localhost:8000/payload \
+            -H 'Content-Type: application/json' -d @examples/sample.json
+      - if: always()
+        run: docker compose logs && docker compose down -v
