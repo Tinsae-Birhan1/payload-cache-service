@@ -8,3 +8,6 @@ __pycache__/
 *.sqlite3
 .env
 dist/
+.DS_Store
+.coverage
+htmlcov/
